@@ -7,11 +7,12 @@ import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.PalettedContainerFactory;
 import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.UpgradeData;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.blending.Blender;
 
 public class TrailblazeClient implements ClientModInitializer {
@@ -34,7 +35,13 @@ public class TrailblazeClient implements ClientModInitializer {
 					null
 			);
 
-			ChunkGenerator generator = serverLevel.getChunkSource().getGenerator();
+			ChunkGenerator baseGenerator = serverLevel.getChunkSource().getGenerator();
+
+			if (!(baseGenerator instanceof NoiseBasedChunkGenerator generator)) {
+				System.out.println("Not NoiseBasedChunkGenerator, skipping surface stage");
+				return;
+			}
+
 			generator.fillFromNoise(
 					Blender.empty(),
 					serverLevel.getChunkSource().randomState(),
@@ -42,12 +49,22 @@ public class TrailblazeClient implements ClientModInitializer {
 					protoChunk
 			).thenAccept(resultChunk -> {
 				System.out.println("Filled chunk at " + resultChunk.getPos());
+				WorldGenerationContext context = new WorldGenerationContext(generator, serverLevel);
+				generator.buildSurface(
+						resultChunk,
+						context,
+						serverLevel.getChunkSource().randomState(),
+						serverLevel.structureManager(),
+						serverLevel.getBiomeManager(),
+						Blender.empty(),
+						null
+				);
 
 				// Sample a column of the chunk
+				System.out.println("Surfaced chunk at " + resultChunk.getPos());
 				for (int y = 60; y <= 70; y++) {
-					BlockPos pos = new BlockPos(0, y, 0); // Note this uses world coords, not chunk
-					BlockState state = resultChunk.getBlockState(pos);
-					System.out.println("y=" + y + ": " + state);
+					BlockPos pos = new BlockPos(0, y, 0);  // Note this uses world coords, not chunk
+					System.out.println("y=" + y + ": " + resultChunk.getBlockState(pos));
 				}
 			});
 
