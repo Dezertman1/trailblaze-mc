@@ -11,19 +11,18 @@ import java.util.concurrent.CompletableFuture;
 
 public class ReferenceChunkGenerator {
     public static CompletableFuture<ChunkAccess> generateAndFillReference(ServerLevel serverLevel, ChunkPos chunkPos) {
+        return generateAndFillReference(serverLevel, chunkPos, DiffConfig.INSTANCE.includeFeatures);
+    }
+
+    public static CompletableFuture<ChunkAccess> generateAndFillReference(ServerLevel serverLevel, ChunkPos chunkPos, boolean includeFeatures) {
         ProtoChunk protoChunk = new ProtoChunk(
                 chunkPos, UpgradeData.EMPTY, serverLevel,
                 PalettedContainerFactory.create(serverLevel.registryAccess()), null
         );
-
-        System.out.println("Created empty ProtoChunk at " + protoChunk.getPos());
-        System.out.println("serverLevel: " + serverLevel + " seed: " + serverLevel.getSeed());
-
         ChunkGenerator baseGenerator = serverLevel.getChunkSource().getGenerator();
         if (!(baseGenerator instanceof NoiseBasedChunkGenerator generator)) {
             return CompletableFuture.completedFuture(null);
         }
-
         return generator.fillFromNoise(
                 Blender.empty(), serverLevel.getChunkSource().randomState(),
                 serverLevel.structureManager(), protoChunk
@@ -33,13 +32,10 @@ public class ReferenceChunkGenerator {
                     resultChunk, context, serverLevel.getChunkSource().randomState(),
                     serverLevel.structureManager(), serverLevel.getBiomeManager(), Blender.empty(), null
             );
-
-            System.out.println("Surfaced chunk at " + resultChunk.getPos());
-            for (int y = 60; y <= 70; y++) {
-                BlockPos blockPos = new BlockPos(0, y, 0);  // Note this uses world coords, not chunk
-                System.out.println("y=" + y + ": " + resultChunk.getBlockState(blockPos));
+            if (includeFeatures) {
+                ReferenceWorldGenLevel sandboxLevel = new ReferenceWorldGenLevel(serverLevel, (ProtoChunk) resultChunk);
+                generator.applyBiomeDecoration(sandboxLevel, resultChunk, serverLevel.structureManager());
             }
-
             return resultChunk;
         });
     }
