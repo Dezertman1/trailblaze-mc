@@ -22,14 +22,13 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.border.WorldBorder;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.ChunkSource;
-import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.*;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.blending.Blender;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
@@ -52,15 +51,26 @@ public class ReferenceWorldGenLevel implements WorldGenLevel {
     public ReferenceWorldGenLevel(ServerLevel serverLevel, ProtoChunk targetChunk) {
         this.serverLevel = serverLevel;
         this.targetChunk = targetChunk;
-        this.chunkCache.put(targetChunk.getPos(), targetChunk); // pre-seed cache too, avoids regenerating it
+        this.chunkCache.put(targetChunk.getPos(), targetChunk);
     }
-
 
     private ProtoChunk getOrCreateChunk(int chunkX, int chunkZ) {
         ChunkPos pos = new ChunkPos(chunkX, chunkZ);
-        return chunkCache.computeIfAbsent(pos, p ->
-                (ProtoChunk) ReferenceChunkGenerator.generateAndFillReference(serverLevel, p, false).join()
+        return chunkCache.computeIfAbsent(pos, p -> generateBiomeOnlyChunk(serverLevel, p));
+    }
+
+    private static ProtoChunk generateBiomeOnlyChunk(ServerLevel serverLevel, ChunkPos chunkPos) {
+        ProtoChunk protoChunk = new ProtoChunk(
+                chunkPos, UpgradeData.EMPTY, serverLevel,
+                PalettedContainerFactory.create(serverLevel.registryAccess()), null
         );
+        ChunkGenerator generator = serverLevel.getChunkSource().getGenerator();
+        return (ProtoChunk) generator.createBiomes(
+                serverLevel.getChunkSource().randomState(),
+                Blender.empty(),
+                serverLevel.structureManager(),
+                protoChunk
+        ).join();
     }
 
     @Override
